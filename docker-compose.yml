@@ -1,0 +1,16 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    image: k8s-pobeda-backend:local
+    container_name: k8s-pobeda-backend
+    ports:
+      - "8080:8080"
+    environment:
+      HTTP_ADDR: ":8080"
+      CORS_ALLOW_ORIGIN: "*"
+      KUBECONFIG: /home/nonroot/.kube/config
+    volumes:
+      - ${HOME}/.kube:/home/nonroot/.kube:ro
+    restart: unless-stopped

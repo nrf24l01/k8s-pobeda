@@ -1,21 +1,55 @@
 <script setup lang="ts">
+interface ResourceTotals {
+  cpuMilli: number
+  memoryBytes: number
+  pods: number
+}
+
+interface StatsSnapshot {
+  generatedAtEpoch: number
+  nodeCount: number
+  podCount: number
+  namespaceCount: number
+  latestPendingPodEpoch: number
+  latestPendingPodAgeSeconds: number
+  latestPendingNodeEpoch: number
+  latestPendingNodeAgeSeconds: number
+  allocatedResources: ResourceTotals
+  allocatableResources: ResourceTotals
+}
+
+const config = useRuntimeConfig()
 const currentYear = ref('')
 const hours = ref('00')
 const minutes = ref('00')
 const seconds = ref('00')
 const milliseconds = ref('000')
+const isLoading = ref(true)
+const loadError = ref('')
+const stats = ref<StatsSnapshot | null>(null)
 
 let timer: ReturnType<typeof setInterval> | null = null
+let refreshTimer: ReturnType<typeof setInterval> | null = null
 
-const startTime = Date.now()
+const formatInt = (value: number) => new Intl.NumberFormat('ru-RU').format(value)
 
-const updateCounter = () => {
-  const elapsed = Date.now() - startTime
+const formatCpu = (cpuMilli: number) => {
+  const cores = cpuMilli / 1000
+  return `${cores % 1 === 0 ? cores.toFixed(0) : cores.toFixed(2)} vCPU`
+}
 
-  const h = Math.floor(elapsed / (1000 * 60 * 60))
-  const m = Math.floor((elapsed / (1000 * 60)) % 60)
-  const s = Math.floor((elapsed / 1000) % 60)
-  const ms = elapsed % 1000
+const formatMemory = (bytes: number) => {
+  const gib = bytes / (1024 ** 3)
+  return `${gib % 1 === 0 ? gib.toFixed(0) : gib.toFixed(2)} GiB`
+}
+
+const formatElapsed = (elapsed: number) => {
+  const safeElapsed = Math.max(0, elapsed)
+
+  const h = Math.floor(safeElapsed / (1000 * 60 * 60))
+  const m = Math.floor((safeElapsed / (1000 * 60)) % 60)
+  const s = Math.floor((safeElapsed / 1000) % 60)
+  const ms = safeElapsed % 1000
 
   hours.value = h.toString().padStart(2, '0')
   minutes.value = m.toString().padStart(2, '0')
@@ -23,15 +57,58 @@ const updateCounter = () => {
   milliseconds.value = ms.toString().padStart(3, '0')
 }
 
+const startCounter = (initialElapsedMs: number) => {
+  const counterStart = Date.now()
+  formatElapsed(initialElapsedMs)
+
+  if (timer) {
+    clearInterval(timer)
+  }
+
+  timer = setInterval(() => {
+    const elapsed = initialElapsedMs + (Date.now() - counterStart)
+    formatElapsed(elapsed)
+  }, 50)
+}
+
+const getPendingPodElapsedMs = (snapshot: StatsSnapshot) => {
+  if (snapshot.latestPendingPodEpoch > 0) {
+    return Math.max(0, Date.now() - (snapshot.latestPendingPodEpoch * 1000))
+  }
+
+  return snapshot.latestPendingPodAgeSeconds * 1000
+}
+
+const loadStats = async () => {
+  try {
+    const apiBaseUrl = config.public.apiBaseUrl
+    const snapshot = await $fetch<StatsSnapshot>(`${apiBaseUrl}/v1/stats`)
+
+    stats.value = snapshot
+    loadError.value = ''
+
+    const elapsedMs = getPendingPodElapsedMs(snapshot)
+    startCounter(elapsedMs)
+  } catch {
+    loadError.value = 'Не удалось загрузить статистику кластера'
+  } finally {
+    isLoading.value = false
+  }
+}
+
 onMounted(() => {
   currentYear.value = new Date().getFullYear().toString()
-  updateCounter()
-  timer = setInterval(updateCounter, 50)
+  loadStats()
+  refreshTimer = setInterval(loadStats, 30000)
 })
 
 onBeforeUnmount(() => {
   if (timer) {
     clearInterval(timer)
+  }
+
+  if (refreshTimer) {
+    clearInterval(refreshTimer)
   }
 })
 </script>
@@ -111,7 +188,7 @@ onBeforeUnmount(() => {
               </svg>
             </div>
             <h3>Масштаб</h3>
-            <p>Зачем один сервер, если можно поднять целый кластер ради статического сайта? (но, увы, не в этом случае)</p>
+            <p>Зачем один сервер, если можно поднять целый кластер ради статического сайта? (бобры так и сделали)</p>
           </article>
         </div>
       </section>
@@ -144,13 +221,61 @@ onBeforeUnmount(() => {
           Времени прошло с момента последнего Pending пода
         </p>
       </section>
+
+      <section class="cluster-stats-section">
+        <h2 class="counter-title">
+          Статистика кластера
+        </h2>
+
+        <p v-if="isLoading" class="counter-note">
+          Загружаем свежий снапшот...
+        </p>
+        <p v-else-if="loadError" class="counter-note cluster-stats-error">
+          {{ loadError }}
+        </p>
+
+        <div v-else-if="stats" class="cluster-stats-grid">
+          <div class="counter-item">
+            <span class="counter-value">{{ formatInt(stats.nodeCount) }}</span>
+            <span class="counter-label">Нод</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value">{{ formatInt(stats.podCount) }}</span>
+            <span class="counter-label">Подов</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value">{{ formatInt(stats.namespaceCount) }}</span>
+            <span class="counter-label">Неймспейсов</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value">{{ formatInt(stats.latestPendingNodeAgeSeconds) }}</span>
+            <span class="counter-label">Pending Node (сек)</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value counter-value-small">{{ formatCpu(stats.allocatedResources.cpuMilli) }}</span>
+            <span class="counter-label">Allocated CPU</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value counter-value-small">{{ formatMemory(stats.allocatedResources.memoryBytes) }}</span>
+            <span class="counter-label">Allocated RAM</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value counter-value-small">{{ formatCpu(stats.allocatableResources.cpuMilli) }}</span>
+            <span class="counter-label">Allocatable CPU</span>
+          </div>
+          <div class="counter-item">
+            <span class="counter-value counter-value-small">{{ formatMemory(stats.allocatableResources.memoryBytes) }}</span>
+            <span class="counter-label">Allocatable RAM</span>
+          </div>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">
-      <p>Крутится на Github Pages (денег на кубовый кластер не хватило)</p>
+      <p>Крутится на бобриных кубах</p>
       <p>
         Сурсы на
-        <a class="footer-link" href="https://github.com/misshanya/k8s-pobeda">GitHub</a>
+        <a class="footer-link" href="https://github.com/nrf24l01/k8s-pobeda">GitHub</a>
       </p>
     </footer>
   </div>

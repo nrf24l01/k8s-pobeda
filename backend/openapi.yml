@@ -1,0 +1,126 @@
+openapi: 3.0.3
+info:
+  title: Kubernetes Stats API
+  version: 1.0.0
+  description: API for cluster-level Kubernetes statistics.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Liveness endpoint
+      operationId: getHealth
+      tags: [health]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                required: [status]
+
+  /api/v1/stats:
+    get:
+      summary: Get Kubernetes cluster statistics
+      operationId: getClusterStats
+      tags: [stats]
+      responses:
+        '200':
+          description: Cluster statistics snapshot
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StatsSnapshot'
+        '500':
+          description: Unexpected backend error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    StatsSnapshot:
+      type: object
+      properties:
+        generatedAtEpoch:
+          type: integer
+          format: int64
+          minimum: 0
+        nodeCount:
+          type: integer
+          format: int32
+          minimum: 0
+        podCount:
+          type: integer
+          format: int32
+          minimum: 0
+        namespaceCount:
+          type: integer
+          format: int32
+          minimum: 0
+        latestPendingPodEpoch:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 0 means no pending pod exists.
+        latestPendingPodAgeSeconds:
+          type: integer
+          format: int64
+          minimum: 0
+        latestPendingNodeEpoch:
+          type: integer
+          format: int64
+          minimum: 0
+          description: 0 means no pending node exists.
+        latestPendingNodeAgeSeconds:
+          type: integer
+          format: int64
+          minimum: 0
+        allocatedResources:
+          $ref: '#/components/schemas/ResourceTotals'
+        allocatableResources:
+          $ref: '#/components/schemas/ResourceTotals'
+      required:
+        - generatedAtEpoch
+        - nodeCount
+        - podCount
+        - namespaceCount
+        - latestPendingPodEpoch
+        - latestPendingPodAgeSeconds
+        - latestPendingNodeEpoch
+        - latestPendingNodeAgeSeconds
+        - allocatedResources
+        - allocatableResources
+
+    ResourceTotals:
+      type: object
+      properties:
+        cpuMilli:
+          type: integer
+          format: int64
+          minimum: 0
+        memoryBytes:
+          type: integer
+          format: int64
+          minimum: 0
+        pods:
+          type: integer
+          format: int64
+          minimum: 0
+      required:
+        - cpuMilli
+        - memoryBytes
+        - pods
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required: [error]

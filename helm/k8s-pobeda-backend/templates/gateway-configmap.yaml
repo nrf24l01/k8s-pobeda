@@ -11,22 +11,24 @@ data:
       listen 80;
       server_name _;
 
-      location = /api {
-        proxy_http_version 1.1;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://{{ include "k8s-pobeda-backend.fullname" . }}:{{ .Values.service.port }}/api;
+      # Nginx ping
+      location = /ng/ping {
+        access_log off;
+        add_header Content-Type text/plain;
+        return 200 "Nginx status OK\n";
       }
 
       location /api/ {
-        proxy_http_version 1.1;
+        proxy_pass http://backend:8080/api/;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://{{ include "k8s-pobeda-backend.fullname" . }}:{{ .Values.service.port }}/api/;
+
+        proxy_pass_header Access-Control-Allow-Origin;
+        proxy_pass_header Access-Control-Allow-Methods;
+        proxy_pass_header Access-Control-Allow-Headers;
+        proxy_pass_header Access-Control-Allow-Credentials;
       }
 
       location /healthz {
@@ -35,7 +37,7 @@ data:
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://{{ include "k8s-pobeda-backend.fullname" . }}:{{ .Values.service.port }}/healthz;
+        proxy_pass http://backend:8080/healthz;
       }
 
       location / {
@@ -44,6 +46,6 @@ data:
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
-        proxy_pass http://{{ include "k8s-pobeda-backend.fullname" . }}-frontend:3000;
+        proxy_pass http://frontend:3000;
       }
     }

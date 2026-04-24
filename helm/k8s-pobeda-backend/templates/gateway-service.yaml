@@ -12,6 +12,9 @@ spec:
       targetPort: http
       protocol: TCP
       name: http
+      {{- if and (eq .Values.gateway.service.type "NodePort") .Values.gateway.service.nodePort }}
+      nodePort: {{ .Values.gateway.service.nodePort }}
+      {{- end }}
   selector:
     {{- include "k8s-pobeda-backend.selectorLabels" . | nindent 4 }}
     app.kubernetes.io/component: gateway

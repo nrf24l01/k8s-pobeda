@@ -3,7 +3,7 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    image: k8s-pobeda-frontend:local
+    image: ghcr.io/nrf24l01/k8s-pobeda-frontend
     container_name: k8s-pobeda-frontend
     environment:
       NUXT_PUBLIC_API_BASE_URL: /api
@@ -17,7 +17,7 @@ services:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    image: k8s-pobeda-backend:local
+    image: ghcr.io/nrf24l01/k8s-pobeda-backend
     container_name: k8s-pobeda-backend
     expose:
       - "8080"

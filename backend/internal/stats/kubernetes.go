@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	v1 "k8s.io/api/core/v1"
@@ -16,6 +17,10 @@ import (
 
 type KubernetesProvider struct {
 	client kubernetes.Interface
+
+	mu                   sync.RWMutex
+	lastPendingPodEpoch  int64
+	lastPendingNodeEpoch int64
 }
 
 func NewKubernetesProvider() (*KubernetesProvider, error) {
@@ -53,6 +58,8 @@ func (p *KubernetesProvider) Collect(now time.Time) (Snapshot, error) {
 
 	latestPendingPod := latestPendingPod(pods.Items, now)
 	latestPendingNode := latestPendingNode(nodes.Items, now)
+	latestPendingPod = p.mergeLastPendingPod(latestPendingPod)
+	latestPendingNode = p.mergeLastPendingNode(latestPendingNode)
 	allocated, allocatable := aggregateResources(nodes.Items, pods.Items)
 
 	return Snapshot{
@@ -67,6 +74,40 @@ func (p *KubernetesProvider) Collect(now time.Time) (Snapshot, error) {
 		AllocatedResources:          allocated,
 		AllocatableResources:        allocatable,
 	}, nil
+}
+
+func (p *KubernetesProvider) mergeLastPendingPod(currentPendingEpoch int64) int64 {
+	if currentPendingEpoch > 0 {
+		p.mu.Lock()
+		if currentPendingEpoch > p.lastPendingPodEpoch {
+			p.lastPendingPodEpoch = currentPendingEpoch
+		}
+		latest := p.lastPendingPodEpoch
+		p.mu.Unlock()
+		return latest
+	}
+
+	p.mu.RLock()
+	latest := p.lastPendingPodEpoch
+	p.mu.RUnlock()
+	return latest
+}
+
+func (p *KubernetesProvider) mergeLastPendingNode(currentPendingEpoch int64) int64 {
+	if currentPendingEpoch > 0 {
+		p.mu.Lock()
+		if currentPendingEpoch > p.lastPendingNodeEpoch {
+			p.lastPendingNodeEpoch = currentPendingEpoch
+		}
+		latest := p.lastPendingNodeEpoch
+		p.mu.Unlock()
+		return latest
+	}
+
+	p.mu.RLock()
+	latest := p.lastPendingNodeEpoch
+	p.mu.RUnlock()
+	return latest
 }
 
 func buildConfig() (*rest.Config, error) {

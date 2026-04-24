@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { onBeforeUnmount, onMounted, ref } from 'vue'
+
 interface ResourceTotals {
   cpuMilli: number
   memoryBytes: number
@@ -18,7 +20,6 @@ interface StatsSnapshot {
   allocatableResources: ResourceTotals
 }
 
-const config = useRuntimeConfig()
 const currentYear = ref('')
 const hours = ref('00')
 const minutes = ref('00')
@@ -81,8 +82,14 @@ const getPendingPodElapsedMs = (snapshot: StatsSnapshot) => {
 
 const loadStats = async () => {
   try {
-    const apiBaseUrl = config.public.apiBaseUrl
-    const snapshot = await $fetch<StatsSnapshot>(`${apiBaseUrl}/v1/stats`)
+    const apiBaseUrl = import.meta.env.VITE_API_BASE_URL || '/api'
+    const response = await fetch(`${apiBaseUrl}/v1/stats`)
+
+    if (!response.ok) {
+      throw new Error('Unable to load stats')
+    }
+
+    const snapshot = (await response.json()) as StatsSnapshot
 
     stats.value = snapshot
     loadError.value = ''

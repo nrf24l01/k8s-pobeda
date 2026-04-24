@@ -7,20 +7,12 @@ RUN npm ci
 
 COPY . .
 
-ENV NUXT_PUBLIC_API_BASE_URL=/api
+ENV VITE_API_BASE_URL=/api
 RUN npm run build
 
-FROM node:22-alpine
+FROM nginx:1.27-alpine
 
-WORKDIR /app
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/dist /usr/share/nginx/html
 
-ENV NODE_ENV=production
-ENV NITRO_PORT=3000
-ENV NITRO_HOST=0.0.0.0
-ENV NUXT_PUBLIC_API_BASE_URL=/api
-
-COPY --from=builder /app/.output ./.output
-
-EXPOSE 3000
-
-CMD ["node", ".output/server/index.mjs"]
+EXPOSE 80

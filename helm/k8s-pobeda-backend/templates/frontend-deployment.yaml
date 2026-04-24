@@ -1,0 +1,36 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "k8s-pobeda-backend.fullname" . }}-frontend
+  labels:
+    {{- include "k8s-pobeda-backend.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: {{ .Values.frontend.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "k8s-pobeda-backend.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: frontend
+  template:
+    metadata:
+      labels:
+        {{- include "k8s-pobeda-backend.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: "{{ .Values.frontend.image.repository }}:{{ .Values.frontend.image.tag }}"
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 3000
+              protocol: TCP
+          env:
+            - name: NUXT_PUBLIC_API_BASE_URL
+              value: /api
+            - name: NITRO_HOST
+              value: 0.0.0.0
+            - name: NITRO_PORT
+              value: "3000"
+          resources:
+            {{- toYaml .Values.frontend.resources | nindent 12 }}

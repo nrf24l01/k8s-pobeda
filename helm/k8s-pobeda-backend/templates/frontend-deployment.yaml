@@ -23,14 +23,7 @@ spec:
           imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
           ports:
             - name: http
-              containerPort: 3000
+              containerPort: 80
               protocol: TCP
-          env:
-            - name: NUXT_PUBLIC_API_BASE_URL
-              value: /api
-            - name: NITRO_HOST
-              value: 0.0.0.0
-            - name: NITRO_PORT
-              value: "3000"
           resources:
             {{- toYaml .Values.frontend.resources | nindent 12 }}

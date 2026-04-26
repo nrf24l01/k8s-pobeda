@@ -28,6 +28,7 @@ const milliseconds = ref('000')
 const isLoading = ref(true)
 const loadError = ref('')
 const stats = ref<StatsSnapshot | null>(null)
+const hasPendingPod = ref(false)
 
 let timer: ReturnType<typeof setInterval> | null = null
 let refreshTimer: ReturnType<typeof setInterval> | null = null
@@ -72,6 +73,13 @@ const startCounter = (initialElapsedMs: number) => {
   }, 50)
 }
 
+const stopCounter = () => {
+  if (timer) {
+    clearInterval(timer)
+    timer = null
+  }
+}
+
 const getPendingPodElapsedMs = (snapshot: StatsSnapshot) => {
   if (snapshot.latestPendingPodEpoch > 0) {
     return Math.max(0, Date.now() - (snapshot.latestPendingPodEpoch * 1000))
@@ -93,6 +101,13 @@ const loadStats = async () => {
 
     stats.value = snapshot
     loadError.value = ''
+    hasPendingPod.value = snapshot.latestPendingPodEpoch <= 0
+
+    if (hasPendingPod.value) {
+      stopCounter()
+      formatElapsed(0)
+      return
+    }
 
     const elapsedMs = getPendingPodElapsedMs(snapshot)
     startCounter(elapsedMs)
@@ -200,7 +215,7 @@ onBeforeUnmount(() => {
         </div>
       </section>
 
-      <section class="counter-section">
+      <section class="counter-section" :class="{ 'counter-section-alert': hasPendingPod }">
         <h2 class="counter-title">
           Стабильность кластера
         </h2>
@@ -224,8 +239,8 @@ onBeforeUnmount(() => {
           </div>
         </div>
 
-        <p class="counter-note">
-          Времени прошло с момента последнего Pending пода
+        <p class="counter-note" :class="{ 'counter-note-alert': hasPendingPod }">
+          {{ hasPendingPod ? 'Есть pending pod(ну или их никогда не было с момента рождения этого пода)' : 'Времени прошло с момента последнего Pending пода' }}
         </p>
       </section>
 
